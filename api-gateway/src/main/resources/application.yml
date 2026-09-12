@@ -1,0 +1,78 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: api-gateway
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+  cloud:
+    gateway:
+      default-filters:
+        - name: RequestRateLimiter
+          args:
+            redis-rate-limiter.replenishRate: 20
+            redis-rate-limiter.burstCapacity: 40
+            redis-rate-limiter.requestedTokens: 1
+            key-resolver: "#{@ipKeyResolver}"
+      routes:
+
+        # ---- Customer identity: register/login are public, everything else needs a JWT ----
+        - id: customer-auth-public
+          uri: ${services.customer-url}
+          order: 0
+          predicates:
+            - Path=/api/customers/register,/api/customers/login
+
+        - id: customer-protected
+          uri: ${services.customer-url}
+          order: 1
+          predicates:
+            - Path=/api/customers/**
+          filters:
+            - JwtAuth
+
+        # ---- Product catalog: public read/write for this demo (no login wall on browsing) ----
+        - id: product-service
+          uri: ${services.product-url}
+          order: 2
+          predicates:
+            - Path=/api/products/**
+
+        # ---- Cart & Orders: require a logged-in customer ----
+        - id: cart-service
+          uri: ${services.cart-url}
+          order: 3
+          predicates:
+            - Path=/api/cart/**
+          filters:
+            - JwtAuth
+
+        - id: order-service
+          uri: ${services.order-url}
+          order: 4
+          predicates:
+            - Path=/api/orders/**
+          filters:
+            - JwtAuth
+
+services:
+  customer-url: ${CUSTOMER_SERVICE_URL:http://localhost:8081}
+  product-url: ${PRODUCT_SERVICE_URL:http://localhost:8082}
+  cart-url: ${CART_SERVICE_URL:http://localhost:8083}
+  order-url: ${ORDER_SERVICE_URL:http://localhost:8085}
+
+jwt:
+  secret: ${JWT_SECRET:this-is-a-local-dev-secret-key-please-change-in-prod-2024}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,gateway
+
+logging:
+  level:
+    org.springframework.cloud.gateway: INFO

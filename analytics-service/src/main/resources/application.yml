@@ -1,0 +1,29 @@
+server:
+  port: 8089
+
+spring:
+  application:
+    name: analytics-service
+  jackson:
+    deserialization:
+      fail-on-unknown-properties: false
+  kafka:
+    bootstrap-servers: ${SPRING_KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: analytics-service
+      auto-offset-reset: earliest
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+
+order:
+  topic: order-events
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+
+# NOTE: metrics are held in memory for simplicity (reset on restart). A
+# production build would persist them (e.g. a small analytics_db / a
+# time-series store) instead.

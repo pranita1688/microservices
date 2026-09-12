@@ -1,0 +1,20 @@
+server:
+  port: 8083
+
+spring:
+  application:
+    name: cart-service
+  data:
+    redis:
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
+
+# Carts auto-expire after this many hours of inactivity (abandoned-cart TTL).
+cart:
+  ttl-hours: 72
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info

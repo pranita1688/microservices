@@ -1,0 +1,304 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ShopMicro Demo Storefront</title>
+<style>
+  :root { --brand:#2563eb; --bg:#f8fafc; --card:#ffffff; --text:#1e293b; --muted:#64748b; --border:#e2e8f0; --danger:#dc2626; --success:#16a34a; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: -apple-system, Segoe UI, Roboto, Arial, sans-serif; background:var(--bg); color:var(--text); }
+  header { background:var(--brand); color:white; padding:16px 24px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; }
+  header h1 { margin:0; font-size:20px; }
+  header .right { display:flex; gap:12px; align-items:center; font-size:14px; }
+  button { cursor:pointer; border:none; border-radius:6px; padding:8px 14px; font-size:14px; background:var(--brand); color:white; }
+  button.secondary { background:#e2e8f0; color:var(--text); }
+  button.danger { background:var(--danger); }
+  button:disabled { opacity:0.5; cursor:not-allowed; }
+  main { max-width:1000px; margin:0 auto; padding:24px; display:grid; gap:24px; }
+  .card { background:var(--card); border:1px solid var(--border); border-radius:10px; padding:20px; }
+  .card h2 { margin-top:0; font-size:16px; }
+  .grid { display:grid; grid-template-columns: repeat(auto-fill, minmax(200px,1fr)); gap:16px; }
+  .product { border:1px solid var(--border); border-radius:8px; padding:12px; }
+  .product img { width:100%; border-radius:6px; height:120px; object-fit:cover; background:#eee; }
+  .product h3 { font-size:14px; margin:8px 0 4px; }
+  .price { color:var(--brand); font-weight:600; }
+  .row { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:6px 0; border-bottom:1px solid var(--border); }
+  .row:last-child { border-bottom:none; }
+  input, select { padding:8px; border:1px solid var(--border); border-radius:6px; font-size:14px; width:100%; }
+  form { display:grid; gap:8px; max-width:360px; }
+  .tabs { display:flex; gap:8px; margin-bottom:12px; }
+  .tabs button { background:transparent; color:var(--muted); border:1px solid var(--border); }
+  .tabs button.active { background:var(--brand); color:white; border-color:var(--brand); }
+  .msg { padding:10px; border-radius:6px; font-size:13px; margin-top:8px; }
+  .msg.error { background:#fee2e2; color:var(--danger); }
+  .msg.ok { background:#dcfce7; color:var(--success); }
+  .badge { display:inline-block; padding:2px 8px; border-radius:999px; font-size:12px; font-weight:600; }
+  .badge.PAID { background:#dcfce7; color:var(--success); }
+  .badge.PENDING { background:#fef9c3; color:#854d0e; }
+  .badge.PAYMENT_FAILED, .badge.STOCK_UNAVAILABLE { background:#fee2e2; color:var(--danger); }
+  pre { background:#0f172a; color:#e2e8f0; padding:12px; border-radius:8px; overflow:auto; font-size:12px; }
+  .muted { color:var(--muted); font-size:13px; }
+  #cartCount { background:white; color:var(--brand); border-radius:999px; padding:2px 8px; font-weight:700; font-size:12px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🛍️ ShopMicro <span class="muted" style="color:#dbeafe">— microservices demo</span></h1>
+  <div class="right" id="authStatus">
+    <span id="whoami">Not logged in</span>
+    <span id="cartCount">cart: 0</span>
+    <button class="secondary" id="logoutBtn" style="display:none">Logout</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- AUTH -->
+  <section class="card" id="authCard">
+    <div class="tabs">
+      <button id="tabLogin" class="active">Login</button>
+      <button id="tabRegister">Register</button>
+    </div>
+
+    <form id="loginForm">
+      <input type="email" id="loginEmail" placeholder="Email" value="jane@example.com" required>
+      <input type="password" id="loginPassword" placeholder="Password" value="password123" required>
+      <button type="submit">Login</button>
+    </form>
+
+    <form id="registerForm" style="display:none">
+      <input type="text" id="regName" placeholder="Full name" value="Jane Doe" required>
+      <input type="email" id="regEmail" placeholder="Email" value="jane@example.com" required>
+      <input type="password" id="regPassword" placeholder="Password (min 6 chars)" value="password123" required>
+      <input type="text" id="regAddress" placeholder="Address" value="123 Main St">
+      <button type="submit">Create account</button>
+    </form>
+    <div id="authMsg"></div>
+  </section>
+
+  <!-- PRODUCTS -->
+  <section class="card">
+    <h2>Catalog</h2>
+    <div class="grid" id="productGrid">Loading products…</div>
+  </section>
+
+  <!-- CART -->
+  <section class="card">
+    <h2>Cart</h2>
+    <div id="cartItems" class="muted">Log in to see your cart.</div>
+    <div style="margin-top:12px; display:flex; gap:8px;">
+      <button id="checkoutBtn" disabled>Checkout</button>
+      <select id="cardChoice">
+        <option value="">Test card: always approved</option>
+        <option value="4000000000000002">Test card: force decline (4000000000000002)</option>
+      </select>
+    </div>
+    <div id="checkoutMsg"></div>
+  </section>
+
+  <!-- ORDERS -->
+  <section class="card">
+    <h2>My Orders</h2>
+    <button class="secondary" id="refreshOrdersBtn">Refresh</button>
+    <div id="ordersList" class="muted">Log in to see your orders.</div>
+  </section>
+
+  <!-- PLATFORM STATUS -->
+  <section class="card">
+    <h2>Platform status (direct service calls, bypassing the gateway)</h2>
+    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+      <button class="secondary" id="loadAnalyticsBtn">Load analytics summary</button>
+      <input type="number" id="trackOrderId" placeholder="Order ID" style="width:120px">
+      <button class="secondary" id="trackShipmentBtn">Track shipment</button>
+    </div>
+    <pre id="statusOutput">—</pre>
+  </section>
+
+</main>
+
+<script>
+const GATEWAY = 'http://localhost:8080/api';
+const SHIPPING_DIRECT = 'http://localhost:8088/api';
+const ANALYTICS_DIRECT = 'http://localhost:8089/api';
+
+let session = JSON.parse(localStorage.getItem('session') || 'null');
+let products = [];
+
+function saveSession(s) { session = s; localStorage.setItem('session', JSON.stringify(s)); renderAuth(); }
+function clearSession() { session = null; localStorage.removeItem('session'); renderAuth(); }
+function authHeaders() { return session ? { 'Authorization': 'Bearer ' + session.token } : {}; }
+
+function renderAuth() {
+  document.getElementById('whoami').textContent = session ? `Logged in as ${session.name} (#${session.customerId})` : 'Not logged in';
+  document.getElementById('logoutBtn').style.display = session ? 'inline-block' : 'none';
+  document.getElementById('authCard').style.display = session ? 'none' : 'block';
+  document.getElementById('checkoutBtn').disabled = !session;
+  if (session) { loadCart(); loadOrders(); } else {
+    document.getElementById('cartItems').textContent = 'Log in to see your cart.';
+    document.getElementById('ordersList').textContent = 'Log in to see your orders.';
+    document.getElementById('cartCount').textContent = 'cart: 0';
+  }
+}
+
+function showMsg(elId, text, ok) {
+  const el = document.getElementById(elId);
+  el.innerHTML = `<div class="msg ${ok ? 'ok' : 'error'}">${text}</div>`;
+}
+
+// ---- Auth ----
+document.getElementById('tabLogin').onclick = () => {
+  document.getElementById('tabLogin').classList.add('active');
+  document.getElementById('tabRegister').classList.remove('active');
+  document.getElementById('loginForm').style.display = 'grid';
+  document.getElementById('registerForm').style.display = 'none';
+};
+document.getElementById('tabRegister').onclick = () => {
+  document.getElementById('tabRegister').classList.add('active');
+  document.getElementById('tabLogin').classList.remove('active');
+  document.getElementById('registerForm').style.display = 'grid';
+  document.getElementById('loginForm').style.display = 'none';
+};
+
+document.getElementById('loginForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value;
+  const password = document.getElementById('loginPassword').value;
+  try {
+    const res = await fetch(`${GATEWAY}/customers/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Login failed');
+    saveSession(data);
+    showMsg('authMsg', 'Logged in!', true);
+  } catch (err) { showMsg('authMsg', err.message, false); }
+};
+
+document.getElementById('registerForm').onsubmit = async (e) => {
+  e.preventDefault();
+  const body = {
+    name: document.getElementById('regName').value,
+    email: document.getElementById('regEmail').value,
+    password: document.getElementById('regPassword').value,
+    address: document.getElementById('regAddress').value
+  };
+  try {
+    const res = await fetch(`${GATEWAY}/customers/register`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message || 'Registration failed');
+    showMsg('authMsg', 'Account created! Now log in.', true);
+    document.getElementById('tabLogin').click();
+  } catch (err) { showMsg('authMsg', err.message, false); }
+};
+
+document.getElementById('logoutBtn').onclick = clearSession;
+
+// ---- Products ----
+async function loadProducts() {
+  const res = await fetch(`${GATEWAY}/products`);
+  products = await res.json();
+  const grid = document.getElementById('productGrid');
+  grid.innerHTML = products.map(p => `
+    <div class="product">
+      <img src="${p.imageUrl}" onerror="this.style.visibility='hidden'">
+      <h3>${p.name}</h3>
+      <div class="price">$${p.price.toFixed(2)}</div>
+      <button onclick="addToCart(${p.id})" style="margin-top:8px; width:100%;">Add to cart</button>
+    </div>`).join('');
+}
+
+async function addToCart(productId) {
+  if (!session) { showMsg('checkoutMsg', 'Log in first.', false); return; }
+  await fetch(`${GATEWAY}/cart/items`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify({ productId, quantity: 1 })
+  });
+  loadCart();
+}
+
+// ---- Cart ----
+async function loadCart() {
+  const res = await fetch(`${GATEWAY}/cart`, { headers: authHeaders() });
+  if (!res.ok) return;
+  const cart = await res.json();
+  document.getElementById('cartCount').textContent = `cart: ${cart.items.reduce((a, i) => a + i.quantity, 0)}`;
+  if (cart.items.length === 0) {
+    document.getElementById('cartItems').innerHTML = '<div class="muted">Cart is empty.</div>';
+    return;
+  }
+  document.getElementById('cartItems').innerHTML = cart.items.map(i => {
+    const p = products.find(p => p.id === i.productId);
+    return `<div class="row"><span>${p ? p.name : 'Product #' + i.productId} × ${i.quantity}</span>
+      <button class="secondary" onclick="removeFromCart(${i.productId})">Remove</button></div>`;
+  }).join('');
+}
+
+async function removeFromCart(productId) {
+  await fetch(`${GATEWAY}/cart/items/${productId}`, { method: 'DELETE', headers: authHeaders() });
+  loadCart();
+}
+
+document.getElementById('checkoutBtn').onclick = async () => {
+  const res = await fetch(`${GATEWAY}/cart`, { headers: authHeaders() });
+  const cart = await res.json();
+  if (cart.items.length === 0) { showMsg('checkoutMsg', 'Cart is empty.', false); return; }
+
+  const cardNumber = document.getElementById('cardChoice').value;
+  const body = {
+    customerId: session.customerId,
+    items: cart.items.map(i => ({ productId: i.productId, quantity: i.quantity })),
+    paymentMethod: 'CARD',
+    cardNumber: cardNumber || undefined
+  };
+  try {
+    const orderRes = await fetch(`${GATEWAY}/orders`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json', ...authHeaders() },
+      body: JSON.stringify(body)
+    });
+    const data = await orderRes.json();
+    if (!orderRes.ok) throw new Error(data.message || 'Checkout failed');
+    showMsg('checkoutMsg', `Order #${data.id} placed! Status: ${data.status}`, true);
+    loadCart();
+    loadOrders();
+  } catch (err) { showMsg('checkoutMsg', err.message, false); }
+};
+
+// ---- Orders ----
+async function loadOrders() {
+  const res = await fetch(`${GATEWAY}/orders?customerId=${session.customerId}`, { headers: authHeaders() });
+  if (!res.ok) return;
+  const orders = await res.json();
+  if (orders.length === 0) { document.getElementById('ordersList').innerHTML = '<div class="muted">No orders yet.</div>'; return; }
+  document.getElementById('ordersList').innerHTML = orders.map(o => `
+    <div class="row">
+      <span>Order #${o.id} — $${o.totalAmount.toFixed(2)} <span class="badge ${o.status}">${o.status}</span></span>
+      <span class="muted">${new Date(o.createdAt).toLocaleString()}</span>
+    </div>`).join('');
+}
+document.getElementById('refreshOrdersBtn').onclick = loadOrders;
+
+// ---- Platform status (direct calls to event-driven services) ----
+document.getElementById('loadAnalyticsBtn').onclick = async () => {
+  const res = await fetch(`${ANALYTICS_DIRECT}/analytics/summary`);
+  document.getElementById('statusOutput').textContent = JSON.stringify(await res.json(), null, 2);
+};
+document.getElementById('trackShipmentBtn').onclick = async () => {
+  const id = document.getElementById('trackOrderId').value;
+  if (!id) return;
+  const res = await fetch(`${SHIPPING_DIRECT}/shipping/${id}`);
+  document.getElementById('statusOutput').textContent = res.ok
+    ? JSON.stringify(await res.json(), null, 2)
+    : 'No shipment found yet for that order (Kafka consumer may still be processing — retry in a second).';
+};
+
+// ---- Init ----
+renderAuth();
+loadProducts();
+</script>
+</body>
+</html>
